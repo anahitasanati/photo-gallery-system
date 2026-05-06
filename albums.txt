@@ -1,2 +1,0 @@
-vacation 2 1 2
-family 1 3
