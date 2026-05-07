@@ -2,22 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_PHOTOS 100
-#define MAX_ALBUMS 10
-
-// ===== COLORS (ANSI) =====
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
+// ===== COLORS =====
+#define RED "\033[1;31m"
+#define GREEN "\033[1;32m"
+#define YELLOW "\033[1;33m"
+#define CYAN "\033[1;36m"
+#define RESET "\033[0m"
 
 // ===== STRUCTS =====
 typedef struct {
     int id;
     char name[100];
-    int size;          // سایز به صورت int (برای جمع‌زدن و جلوگیری از منفی شدن)
+    int size;
 } Photo;
 
 typedef struct {
@@ -26,30 +22,13 @@ typedef struct {
     int photoCount;
 } Album;
 
-// ===== GLOBAL DATA =====
-Photo photos[MAX_PHOTOS];
-Album albums[MAX_ALBUMS];
+// ===== GLOBAL VARIABLES =====
+Photo photos[100];
+Album albums[100];
 int photoCount = 0;
 int albumCount = 0;
 
-// ===== UTILS & VALIDATION =====
-int readInt() {
-    int x;
-    while (scanf("%d", &x) != 1) {
-        printf(RED "Invalid input! Enter a number: " RESET);
-        while (getchar() != '\n');
-    }
-    return x;
-}
-
-void readString(char *s, int max) {
-    while (1) {
-        fgets(s, max, stdin);
-        if (s[0] != '\n') break;
-    }
-    s[strcspn(s, "\n")] = 0;
-}
-
+// ===== UTILITY FUNCTIONS =====
 void clearScreen() {
 #ifdef _WIN32
     system("cls");
@@ -59,14 +38,27 @@ void clearScreen() {
 }
 
 void pauseScreen() {
-    printf("\nPress ENTER to continue...");
-    while (getchar() != '\n');
+    printf(YELLOW "\nPress ENTER to continue..." RESET);
+    getchar();
+}
+
+int readInt() {
+    int value;
+    while (scanf("%d", &value) != 1) {
+        printf(RED "Invalid input! Please enter a valid number: " RESET);
+        while (getchar() != '\n');
+    }
+    getchar();
+    return value;
 }
 
 // ===== FILE FUNCTIONS =====
 void savePhotos() {
     FILE *f = fopen("photos.dat", "wb");
-    if (!f) return;
+    if (!f) {
+        printf(RED "Error saving photos!\n" RESET);
+        return;
+    }
     fwrite(&photoCount, sizeof(int), 1, f);
     fwrite(photos, sizeof(Photo), photoCount, f);
     fclose(f);
@@ -82,7 +74,10 @@ void loadPhotos() {
 
 void saveAlbums() {
     FILE *f = fopen("albums.dat", "wb");
-    if (!f) return;
+    if (!f) {
+        printf(RED "Error saving albums!\n" RESET);
+        return;
+    }
     fwrite(&albumCount, sizeof(int), 1, f);
     fwrite(albums, sizeof(Album), albumCount, f);
     fclose(f);
@@ -104,43 +99,6 @@ int photoExists(int id) {
     return 0;
 }
 
-void addPhoto() {
-    if (photoCount >= MAX_PHOTOS) {
-        printf(RED "Photo limit reached!\n" RESET);
-        return;
-    }
-
-    Photo p;
-
-    printf("Enter photo ID (number only): ");
-    p.id = readInt();
-
-    // چک تکراری بودن ID
-    for (int i = 0; i < photoCount; i++) {
-        if (photos[i].id == p.id) {
-            printf(RED "ID already exists!\n" RESET);
-            return;
-        }
-    }
-
-    printf("Enter photo name (letters and spaces): ");
-    getchar(); // خوردن \n قبلی
-    fgets(p.name, 100, stdin);
-    p.name[strcspn(p.name, "\n")] = 0;
-
-    printf("Enter photo size (positive number, in KB): ");
-    p.size = readInt();
-    if (p.size <= 0) {
-        printf(RED "Size must be positive!\n" RESET);
-        return;
-    }
-
-    photos[photoCount++] = p;
-    savePhotos();
-
-    printf(GREEN "Photo added successfully!\n" RESET);
-}
-
 void displayPhotos() {
     printf("\n=== " CYAN "PHOTOS" RESET " ===\n");
 
@@ -151,14 +109,75 @@ void displayPhotos() {
 
     for (int i = 0; i < photoCount; i++) {
         printf("%d. ID: %d | Name: " GREEN "%s" RESET " | Size: %d KB\n",
-               i + 1,
-               photos[i].id,
-               photos[i].name,
-               photos[i].size);
+               i + 1, photos[i].id, photos[i].name, photos[i].size);
     }
 }
 
+void addPhoto() {
+    if (photoCount >= 100) {
+        printf(RED "Photo storage is full!\n" RESET);
+        return;
+    }
+
+    Photo p;
+
+    printf("Enter photo ID (number only): ");
+    p.id = readInt();
+
+    if (photoExists(p.id)) {
+        printf(RED "Photo ID already exists!\n" RESET);
+        return;
+    }
+
+    printf("Enter photo name (letters and spaces): ");
+    fgets(p.name, sizeof(p.name), stdin);
+    p.name[strcspn(p.name, "\n")] = '\0';
+
+    if (strlen(p.name) == 0) {
+        printf(RED "Photo name cannot be empty!\n" RESET);
+        return;
+    }
+
+    printf("Enter photo size (positive number, in KB): ");
+    p.size = readInt();
+
+    if (p.size <= 0) {
+        printf(RED "Size must be a positive number!\n" RESET);
+        return;
+    }
+
+    photos[photoCount++] = p;
+    savePhotos();
+
+    printf(GREEN "Photo added successfully!\n" RESET);
+}
+
 // ===== ALBUM FUNCTIONS =====
+void createAlbum() {
+    if (albumCount >= 100) {
+        printf(RED "Album storage is full!\n" RESET);
+        return;
+    }
+
+    Album a;
+
+    printf("Enter album name (letters and spaces): ");
+    fgets(a.name, sizeof(a.name), stdin);
+    a.name[strcspn(a.name, "\n")] = '\0';
+
+    if (strlen(a.name) == 0) {
+        printf(RED "Album name cannot be empty!\n" RESET);
+        return;
+    }
+
+    a.photoCount = 0;
+    albums[albumCount++] = a;
+
+    saveAlbums();
+
+    printf(GREEN "Album created successfully!\n" RESET);
+}
+
 void viewAlbums() {
     printf("\n=== " CYAN "ALBUMS" RESET " ===\n");
 
@@ -168,27 +187,9 @@ void viewAlbums() {
     }
 
     for (int i = 0; i < albumCount; i++) {
-        printf("%d. Name: " GREEN "%s" RESET " | Photos: %d\n",
+        printf("%d.Name: " GREEN "%s" RESET " | Photos: %d\n",
                i, albums[i].name, albums[i].photoCount);
     }
-}
-
-void createAlbum() {
-    if (albumCount >= MAX_ALBUMS) {
-        printf(RED "Album limit reached!\n" RESET);
-        return;
-    }
-
-    Album a;
-    a.photoCount = 0;
-
-    printf("Enter album name: ");
-    getchar();
-    readString(a.name, 100);
-albums[albumCount++] = a;
-    saveAlbums();
-
-    printf(GREEN "Album created successfully!\n" RESET);
 }
 
 void addPhotoToAlbum() {
@@ -294,13 +295,13 @@ void menu() {
         clearScreen();
 
         switch (choice) {
-            case 1: displayPhotos();     pauseScreen(); break;
-            case 2: addPhoto();          pauseScreen(); break;
-            case 3: createAlbum();       pauseScreen(); break;
-            case 4: viewAlbums();        pauseScreen(); break;
-            case 5: addPhotoToAlbum();   pauseScreen(); break;
-            case 6: showAlbumSize();     pauseScreen(); break;
-            case 7: deleteAlbum();       pauseScreen(); break;
+            case 1: displayPhotos(); pauseScreen(); break;
+            case 2: addPhoto(); pauseScreen(); break;
+            case 3: createAlbum(); pauseScreen(); break;
+            case 4: viewAlbums(); pauseScreen(); break;
+            case 5: addPhotoToAlbum(); pauseScreen(); break;
+            case 6: showAlbumSize(); pauseScreen(); break;
+            case 7: deleteAlbum(); pauseScreen(); break;
 
             case 0:
                 printf(GREEN "Exiting program...\n" RESET);
@@ -319,7 +320,6 @@ void menu() {
 int main() {
     loadPhotos();
     loadAlbums();
-    clearScreen();
     menu();
     return 0;
 }
